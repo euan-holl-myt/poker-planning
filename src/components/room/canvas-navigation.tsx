@@ -237,7 +237,7 @@ export const CanvasNavigation: FC<CanvasNavigationProps> = ({
             <span className="text-xs text-gray-700 dark:text-gray-300">Default</span>
             <Switch
               checked={isLivePosition}
-              onCheckedChange={onToggleLivePosition}
+              onCheckedChange={(checked) => onToggleLivePosition?.(checked)}
               aria-label="Toggle live position sync"
             />
             <span className="text-xs text-gray-700 dark:text-gray-300">Live</span>
