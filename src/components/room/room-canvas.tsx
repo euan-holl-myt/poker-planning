@@ -14,7 +14,7 @@ import {
 } from "@xyflow/react";
 import { ReactElement, useCallback, useEffect, useState, useMemo } from "react";
 import "@xyflow/react/dist/style.css";
-import { debounce } from "lodash";
+import { debounce, throttle } from "lodash";
 import type { NodeChange } from "@xyflow/react";
 
 import { useMutation } from "convex/react";
@@ -55,6 +55,7 @@ function RoomCanvasInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeType>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+  const [isLivePosition, setIsLivePosition] = useState(false);
 
   // Convex mutations
   const showCards = useMutation(api.rooms.showCards);
@@ -143,11 +144,11 @@ function RoomCanvasInner({
     setEdges(layoutEdges);
   }, [layoutEdges, setEdges]);
 
-  // Debounced position update to prevent database overload
-  const debouncedPositionUpdate = useMemo(
-    () => debounce((nodeId: string, position: { x: number; y: number }) => {
+  // Position update function (debounced or throttled based on mode)
+  const positionUpdate = useMemo(() => {
+    const update = (nodeId: string, position: { x: number; y: number }) => {
       if (!user || !roomId) return;
-      
+
       updateNodePosition({
         roomId,
         nodeId,
@@ -156,29 +157,32 @@ function RoomCanvasInner({
       }).catch((error) => {
         console.error("Failed to update node position:", error);
       });
-    }, 100),
-    [roomId, user, updateNodePosition]
-  );
+    };
 
-  // Cleanup debounced function on unmount
+    return isLivePosition ? throttle(update, 50) : debounce(update, 100);
+  }, [roomId, user, updateNodePosition, isLivePosition]);
+
+  // Cleanup position updater on unmount
   useEffect(() => {
     return () => {
-      debouncedPositionUpdate.cancel();
+      positionUpdate.cancel();
     };
-  }, [debouncedPositionUpdate]);
+  }, [positionUpdate]);
 
   // Handle node position changes
   const handleNodesChange = useCallback((changes: NodeChange<CustomNodeType>[]) => {
     // Call the original handler to update local state
     onNodesChange(changes);
-    
+
     // Send position updates to database
     changes.forEach((change) => {
-      if (change.type === 'position' && change.position && !change.dragging) {
-        debouncedPositionUpdate(change.id, change.position);
+      if (change.type === 'position' && change.position) {
+        if (isLivePosition || !change.dragging) {
+          positionUpdate(change.id, change.position);
+        }
       }
     });
-  }, [onNodesChange, debouncedPositionUpdate]);
+  }, [onNodesChange, positionUpdate, isLivePosition]);
 
   // Handle connection between nodes - prevent manual connections
   const onConnect = useCallback(() => {
@@ -208,7 +212,11 @@ function RoomCanvasInner({
 
   return (
     <div className="w-full h-screen relative">
-      <CanvasNavigation roomData={roomData} />
+      <CanvasNavigation
+        roomData={roomData}
+        isLivePosition={isLivePosition}
+        onToggleLivePosition={setIsLivePosition}
+      />
       <ReactFlow
         nodes={nodes}
         edges={edges}
