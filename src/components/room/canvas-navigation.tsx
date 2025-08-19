@@ -31,17 +31,22 @@ import {
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
 import type { RoomWithRelatedData } from "@/convex/model/rooms";
+import { Switch } from "@/components/ui/switch";
 
 interface CanvasNavigationProps {
   roomData: RoomWithRelatedData;
   onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
+  isLivePosition?: boolean;
+  onToggleLivePosition?: (checked: boolean) => void;
 }
 
 export const CanvasNavigation: FC<CanvasNavigationProps> = ({
   roomData,
   onToggleFullscreen,
   isFullscreen = false,
+  isLivePosition = false,
+  onToggleLivePosition,
 }) => {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
   const { toast } = useToast();
@@ -223,6 +228,19 @@ export const CanvasNavigation: FC<CanvasNavigationProps> = ({
                 <p>Fit to view</p>
               </TooltipContent>
             </Tooltip>
+          </div>
+
+          <Separator orientation="vertical" className="h-6 mx-1" />
+
+          {/* Live position toggle */}
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-gray-700 dark:text-gray-300">Default</span>
+            <Switch
+              checked={isLivePosition}
+              onCheckedChange={onToggleLivePosition}
+              aria-label="Toggle live position sync"
+            />
+            <span className="text-xs text-gray-700 dark:text-gray-300">Live</span>
           </div>
 
           <Separator orientation="vertical" className="h-6 mx-1" />
