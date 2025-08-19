@@ -22,6 +22,7 @@ import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/components/auth/auth-provider";
 import { CanvasNavigation } from "./canvas-navigation";
 import { useCanvasNodes } from "./hooks/useCanvasNodes";
+import { useCanvasLayout } from "./hooks/useCanvasLayout";
 import { Id } from "@/convex/_generated/dataModel";
 import {
   PlayerNode,
@@ -124,8 +125,8 @@ function RoomCanvasInner({
   // Get room ID
   const roomId = roomData?.room._id as Id<"rooms">;
 
-  // Use the canvas nodes hook to get persisted nodes
-  const { nodes: layoutNodes, edges: layoutEdges } = useCanvasNodes({
+  // Get live canvas nodes from the server
+  const { nodes: liveNodes, edges: liveEdges } = useCanvasNodes({
     roomId,
     roomData,
     currentUserId: user?.id,
@@ -135,14 +136,33 @@ function RoomCanvasInner({
     onCardSelect: handleCardSelect,
   });
 
-  // Update nodes and edges when layout changes
+  // Get default layout nodes
+  const { nodes: defaultNodes, edges: defaultEdges } = useCanvasLayout({
+    roomData,
+    currentUserId: user?.id,
+    selectedCardValue,
+    onRevealCards: handleRevealCards,
+    onResetGame: handleResetGame,
+    onCardSelect: handleCardSelect,
+  });
+
+  // Switch between live and default nodes based on toggle state
   useEffect(() => {
-    setNodes(layoutNodes);
-  }, [layoutNodes, setNodes]);
+    setNodes(isLivePosition ? liveNodes : defaultNodes);
+  }, [isLivePosition, liveNodes, defaultNodes, setNodes]);
 
   useEffect(() => {
-    setEdges(layoutEdges);
-  }, [layoutEdges, setEdges]);
+    setEdges(isLivePosition ? liveEdges : defaultEdges);
+  }, [isLivePosition, liveEdges, defaultEdges, setEdges]);
+
+  const handleToggleLivePosition = useCallback(
+    (checked: boolean) => {
+      setIsLivePosition(checked);
+      setNodes(checked ? liveNodes : defaultNodes);
+      setEdges(checked ? liveEdges : defaultEdges);
+    },
+    [liveNodes, defaultNodes, liveEdges, defaultEdges, setNodes, setEdges],
+  );
 
   // Position update function (debounced or throttled based on mode)
   const positionUpdate = useMemo(() => {
@@ -174,12 +194,12 @@ function RoomCanvasInner({
     // Call the original handler to update local state
     onNodesChange(changes);
 
-    // Send position updates to database
+    // Send position updates to database only in live mode
+    if (!isLivePosition) return;
+
     changes.forEach((change) => {
       if (change.type === 'position' && change.position) {
-        if (isLivePosition || !change.dragging) {
-          positionUpdate(change.id, change.position);
-        }
+        positionUpdate(change.id, change.position);
       }
     });
   }, [onNodesChange, positionUpdate, isLivePosition]);
@@ -215,7 +235,7 @@ function RoomCanvasInner({
       <CanvasNavigation
         roomData={roomData}
         isLivePosition={isLivePosition}
-        onToggleLivePosition={setIsLivePosition}
+        onToggleLivePosition={handleToggleLivePosition}
       />
       <ReactFlow
         nodes={nodes}
